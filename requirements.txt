@@ -1,0 +1,12 @@
+pandas
+numpy
+seaborn
+matplotlib
+scikit-learn
+tensorflow
+keras
+flask
+pillow
+gunicorn
+openai
+python-dotenv

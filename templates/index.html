@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Lung Cancer Prediction System</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 850px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #666;
+        }
+
+        .upload-box {
+            border: 3px dashed #667eea;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            background: #f8f9ff;
+            transition: 0.3s;
+        }
+
+        .upload-box:hover {
+            background: #f0f2ff;
+        }
+
+        #fileInput { display: none; }
+
+        .button-group {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 25px 0;
+        }
+
+        button {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .predict-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .clear-btn {
+            background: #eee;
+        }
+
+        .results {
+            display: none;
+            margin-top: 30px;
+            border-top: 2px solid #eee;
+            padding-top: 25px;
+        }
+
+        .image-preview img {
+            max-width: 100%;
+            max-height: 350px;
+            border-radius: 10px;
+        }
+
+        .result-box {
+            background: #f0f9ff;
+            border-left: 5px solid #667eea;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+
+        .result-class {
+            font-size: 1.8em;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .confidence-bar {
+            background: #e0e5ff;
+            border-radius: 10px;
+            height: 10px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .confidence-fill {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            height: 100%;
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th {
+            background: #667eea;
+            color: white;
+            padding: 10px;
+            text-align: left;
+        }
+
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .llm-box {
+            background: #f8f9ff;
+            border-left: 5px solid #764ba2;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 25px;
+        }
+
+        .llm-box pre {
+            white-space: pre-wrap;
+            font-family: inherit;
+        }
+
+        .error {
+            background: #ffe0e0;
+            border-left: 5px solid red;
+            padding: 10px;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+<div class="container">
+
+    <h1>🫁 Lung Cancer Prediction</h1>
+    <p class="subtitle">AI-Powered Chest X-Ray + Clinical Explanation</p>
+
+    <div class="upload-box" onclick="fileInput.click()">
+        <p>Click to Upload Chest X-Ray Image</p>
+        <input type="file" id="fileInput" accept="image/*">
+    </div>
+
+    <div class="button-group">
+        <button class="predict-btn" id="predictBtn" disabled>Analyze</button>
+        <button class="clear-btn" id="clearBtn">Clear</button>
+    </div>
+
+    <div class="loading" id="loading">Analyzing image...</div>
+    <div class="error" id="error"></div>
+
+    <div class="results" id="results">
+
+        <div class="image-preview" id="imagePreview"></div>
+
+        <div class="result-box">
+            <div>Predicted Diagnosis</div>
+            <div class="result-class" id="resultClass"></div>
+            <div id="confidencePercent"></div>
+            <div class="confidence-bar">
+                <div class="confidence-fill" id="confidenceFill"></div>
+            </div>
+        </div>
+
+        <h3>All Predictions</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Diagnosis</th>
+                    <th>Probability</th>
+                </tr>
+            </thead>
+            <tbody id="predictionsBody"></tbody>
+        </table>
+
+        <!-- ✅ LLM REPORT SECTION -->
+        <h3 style="margin-top: 25px;">AI Clinical Report</h3>
+        <div class="llm-box">
+            <pre id="llmReport"></pre>
+        </div>
+
+    </div>
+</div>
+
+<script>
+const fileInput = document.getElementById('fileInput');
+const predictBtn = document.getElementById('predictBtn');
+const clearBtn = document.getElementById('clearBtn');
+const loading = document.getElementById('loading');
+const error = document.getElementById('error');
+const results = document.getElementById('results');
+
+let selectedFile = null;
+
+fileInput.addEventListener('change', () => {
+    selectedFile = fileInput.files[0];
+    predictBtn.disabled = !selectedFile;
+});
+
+predictBtn.addEventListener('click', async () => {
+    if (!selectedFile) return;
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    loading.style.display = 'block';
+    results.style.display = 'none';
+    error.style.display = 'none';
+
+    try {
+        const response = await fetch('/api/predict', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+        loading.style.display = 'none';
+
+        if (response.ok && data.success) {
+            displayResults(data);
+        } else {
+            showError(data.error || "Prediction failed");
+        }
+    } catch (err) {
+        loading.style.display = 'none';
+        showError("Server error: " + err.message);
+    }
+});
+
+clearBtn.addEventListener('click', () => {
+    selectedFile = null;
+    fileInput.value = '';
+    results.style.display = 'none';
+    error.style.display = 'none';
+    predictBtn.disabled = true;
+});
+
+function displayResults(data) {
+    document.getElementById('imagePreview').innerHTML =
+        `<img src="${data.image}" alt="Uploaded image">`;
+
+    document.getElementById('resultClass').textContent = data.predicted_class;
+    document.getElementById('confidencePercent').textContent =
+        "Confidence: " + data.confidence + "%";
+
+    setTimeout(() => {
+        document.getElementById('confidenceFill').style.width =
+            data.confidence + "%";
+    }, 100);
+
+    const tbody = document.getElementById('predictionsBody');
+    tbody.innerHTML = "";
+
+    Object.entries(data.all_predictions).forEach(([label, probability]) => {
+        tbody.innerHTML += `
+            <tr>
+                <td><strong>${label}</strong></td>
+                <td>${probability}%</td>
+            </tr>`;
+    });
+
+    // ✅ DISPLAY LLM REPORT
+    if (data.llm_report) {
+        document.getElementById('llmReport').textContent = data.llm_report;
+    } else {
+        document.getElementById('llmReport').textContent =
+            "LLM report not available.";
+    }
+
+    results.style.display = "block";
+}
+
+function showError(message) {
+    error.textContent = message;
+    error.style.display = "block";
+}
+</script>
+
+</body>
+</html>
